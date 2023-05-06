@@ -2,17 +2,12 @@ package com.emureka.serialandbluetooth.mediapipe;
 
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
-import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.ViewGroup;
-
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.emureka.serialandbluetooth.MyDataStore;
 import com.google.mediapipe.components.CameraHelper;
@@ -23,13 +18,9 @@ import com.google.mediapipe.components.PermissionHelper;
 import com.google.mediapipe.formats.proto.LandmarkProto;
 import com.google.mediapipe.framework.AndroidAssetUtil;
 import com.google.mediapipe.framework.AndroidPacketCreator;
-import com.google.mediapipe.framework.Packet;
 import com.google.mediapipe.framework.PacketGetter;
 import com.google.mediapipe.glutil.EglManager;
 import com.google.protobuf.InvalidProtocolBufferException;
-
-import java.util.HashMap;
-import java.util.Map;
 
 
 public class PoseTracking {
@@ -80,6 +71,7 @@ public class PoseTracking {
     static double ref_head_z=0;
     static double dist_correction =0;
     static double ref_fore = 0;
+    public static int currStat = 0;
     static double[] movingAvg = {0,0,0};
     public static double[] poseOffset = {0, 0, 0};
 
@@ -153,11 +145,11 @@ public class PoseTracking {
         ref_fore = 0;
     }
 
-    private static double[] getPoseValue(LandmarkProto.NormalizedLandmarkList landmarks, String mode, double _ref_head_x, double _ref_head_z, double _ref_head_sh_dist) {
+    private static void getPoseValue(LandmarkProto.NormalizedLandmarkList landmarks, String mode, double _ref_head_x, double _ref_head_z, double _ref_head_sh_dist) {
 
         if(counter!=0)Log.d(TAG, "getPoseValue: "+counter);
         double[] a = {0,0,0};
-        if(mode == "auto"){
+        if(mode.equals("auto")){
             // TODO: 2023/5/4 往前太多會變mode
             if(!auto_mode.equals((Math.abs(landmarks.getLandmark(11).getX()-landmarks.getLandmark(12).getX()))<0.25? "side":"front")){
                 auto_mode  = (Math.abs(landmarks.getLandmark(11).getX()-landmarks.getLandmark(12).getX()))<0.25? "side":"front";
@@ -219,21 +211,20 @@ public class PoseTracking {
             }
         }
         filter(a);
-        return a;
+        //return a;
     }
 
     /**
      * return state
-     * @return { 0, 1, 2, 3 } for { good_pose, foreshortening, shoulder_shrug, head_dist } respectively
      */
     public static void update_current_state(MyDataStore dataStore){
         Log.d(TAG, "get_current_state: foreshortening:"+movingAvg[0]+" shoulder_shrug: "+movingAvg[1]+" head_dist"+movingAvg[2]);
-        int currStat = 0;
+        currStat = 0;
 
         for(int i = 0; i < poseOffset.length; ++i) poseOffset[i] = 0;
 
         // TODO: 2023/5/1  Mode 要手按很麻煩 感覺可以自動 
-        if(mode=="side" || auto_mode=="side"){
+        if(mode.equals("side") || auto_mode.equals("side")){
             if(movingAvg[1]>=0.02){
                 Log.d(TAG, "get_current_state: shoulder_shrug");
                 poseOffset[1] = movingAvg[1] - 0.02;
@@ -283,6 +274,7 @@ public class PoseTracking {
                 currStat = 3;
             }
         }
+        Log.d(TAG, "update_current_state: EMU State" +currStat);
         dataStore.updateEmuState(currStat);
     }
     private static void filter(double[] _a){
@@ -307,53 +299,36 @@ public class PoseTracking {
 
     public void onRequestPermissionsResult(
             int requestCode, String[] permissions, int[] grantResults) {
-
         PermissionHelper.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
-
     protected void onCameraStarted(SurfaceTexture surfaceTexture) {
         previewFrameTexture = surfaceTexture;
         previewDisplayView.setVisibility(View.VISIBLE);
     }
-
     protected Size cameraTargetResolution() {
         return null;
     }
-
     public void startCamera() {
         cameraHelper = new CameraXPreviewHelper();
         cameraHelper.setOnCameraStartedListener(
-                surfaceTexture -> {
-                    onCameraStarted(surfaceTexture);
-                });
-        CameraHelper.CameraFacing cameraFacing = CAMERA_FACING;
+                this::onCameraStarted);
         cameraHelper.startCamera(
-                context, cameraFacing,  null, cameraTargetResolution());
+                context, CAMERA_FACING,  null, cameraTargetResolution());
     }
-
     protected Size computeViewSize(int width, int height) {
         return new Size(width, height);
     }
 
     protected void onPreviewDisplaySurfaceChanged(
-            SurfaceHolder holder, int format, int width, int height) {
-
-        // (Re-)Compute the ideal size of the camera-preview display (the area that the
-        // camera-preview frames get rendered onto, potentially with scaling and rotation)
-        // based on the size of the SurfaceView that contains the display.
+            int width, int height) {
         Size viewSize = computeViewSize(width, height);
         Size displaySize = cameraHelper.computeDisplaySizeFromViewSize(viewSize);
         boolean isCameraRotated = cameraHelper.isCameraRotated();
-
-        // Connect the converter to the camera-preview frames as its input (via
-        // previewFrameTexture), and configure the output width and height as the computed
-        // display size.
         previewFrameTexture.releaseTexImage();
         converter.setSurfaceTextureAndAttachToGLContext(
                 previewFrameTexture,
                 isCameraRotated ? displaySize.getHeight() : displaySize.getWidth(),
                 isCameraRotated ? displaySize.getWidth() : displaySize.getHeight());
-
     }
 
     private void setupPreviewDisplayView() {
@@ -370,7 +345,7 @@ public class PoseTracking {
 
                             @Override
                             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                                onPreviewDisplaySurfaceChanged(holder, format, width, height);
+                                onPreviewDisplaySurfaceChanged(width, height);
                             }
 
                             @Override

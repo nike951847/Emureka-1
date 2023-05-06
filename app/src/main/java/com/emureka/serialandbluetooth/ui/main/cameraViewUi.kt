@@ -2,7 +2,6 @@ package com.emureka.serialandbluetooth.ui.main
 
 import android.util.Log
 import android.view.SurfaceView
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -136,7 +135,7 @@ fun CameraView(
                         }
                         reset = true
                         PoseTracking.set_ref()
-                        while(PoseTracking.reset);
+                        delay(1000)
                         Log.d("Reset", "finished")
                         reset = false
                     }

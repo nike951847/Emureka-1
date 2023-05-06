@@ -14,7 +14,7 @@ class Bird : Service() {
     private lateinit var bird: MediaPlayer
     private lateinit var serviceScope: CoroutineScope
     private var isSoundOn = false
-    private var emuState = 0
+    @Volatile private var emuState = 0
     private var isActivated = false;
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -40,23 +40,31 @@ class Bird : Service() {
         // coroutine for collect emuState
         serviceScope.launch {
             dataStore.settingsFlow.collect {
-                if (!isActivated) {
+//                if (!isActivated) {
+                Log.d("Bird", "${this@Bird.emuState} ${it.emuState}")
                     this@Bird.emuState = it.emuState
-                }
+//                }
             }
         }
 
         // bird chirping
         serviceScope.launch {
-
+            var cuml = 0;
             while (true) {
                 PoseTracking.update_current_state(dataStore)
 //                Log.d("Bird", "$isSoundOn $emuState")
-                if(isSoundOn && (emuState != 0)) {
-                    isActivated = true
-                    bird.start()
-                    delay(1000)
-                    isActivated = false
+                Log.d("Bird"," " + PoseTracking.currStat)
+                if(isSoundOn && (PoseTracking.currStat != 0)) {
+                    cuml += 1
+                    if(cuml>=5) {
+                        isActivated = true
+                        bird.start()
+                        delay(1000)
+                        isActivated = false
+                    }
+                }
+                else{
+                    cuml = 0
                 }
                 delay(450)
             }
